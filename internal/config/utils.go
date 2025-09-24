@@ -29,16 +29,22 @@ func getConfigFilePath() (string, error) {
 func write(cfg Config) error {
 	// Writes the Config object to a JSON file
 
+	// Gets the path to the config file
 	configPath, err := getConfigFilePath()
+	// Returns any errors
 	if err != nil {
 		return err
 	}
 
+	// Marshals the input Config object to json data
 	data, err := json.Marshal(cfg)
+	// Returns any errors
 	if err != nil {
 		return err
 	}
 
+	// Writes the file at the configPath location
 	err = os.WriteFile(configPath, data, permCode)
+	// Returns any errors
 	return err
 }

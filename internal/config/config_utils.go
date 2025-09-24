@@ -28,6 +28,8 @@ func (c *Config) Read() error {
 }
 
 func (c *Config) SetUser(user string) error {
+	// Sets the current user in the config
+
 	c.CurrentUser = &user
 	return write(*c)
 }
