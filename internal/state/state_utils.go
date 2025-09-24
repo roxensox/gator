@@ -15,7 +15,8 @@ func HandlerLogin(s *State, cmd Command) error {
 
 	// If the user didn't provide a username to log in, returns an error
 	if len(cmd.Args) == 0 {
-		return fmt.Errorf("Command has no arguments")
+		fmt.Printf("Must provide a username to log in.\n")
+		os.Exit(1)
 	}
 
 	// Queries the user from the database
