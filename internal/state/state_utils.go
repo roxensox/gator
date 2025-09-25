@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/roxensox/gator/internal/database"
+	"github.com/roxensox/gator/internal/rss"
 	"os"
 	"time"
 )
@@ -40,6 +41,15 @@ func HandlerLogin(s *State, cmd Command) error {
 	fmt.Printf("User set to %s.\n", cmd.Args[0])
 
 	// Returns a null error
+	return nil
+}
+
+func HandlerAgg(s *State, cmd Command) error {
+	feed, err := rss.FetchFeed(context.Background(), "https://www.wagslane.dev/index.xml")
+	if err != nil {
+		return err
+	}
+	fmt.Println(feed)
 	return nil
 }
 

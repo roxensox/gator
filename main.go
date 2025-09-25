@@ -47,6 +47,7 @@ func main() {
 	cmds.Register("register", state.HandlerRegister)
 	cmds.Register("reset", state.HandlerReset)
 	cmds.Register("users", state.HandlerGetUsers)
+	cmds.Register("agg", state.HandlerAgg)
 
 	// Reads input into args
 	args := os.Args
