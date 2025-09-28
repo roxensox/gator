@@ -64,6 +64,7 @@ func HandlerAgg(s *State, cmd Command) error {
 func HandlerAddFeed(s *State, cmd Command) error {
 	// Handles the addfeed command
 
+	// Validates length of input
 	if len(cmd.Args) < 2 {
 		fmt.Println("Must supply a name for the feed and a target URL.")
 		os.Exit(1)
@@ -118,6 +119,52 @@ func HandlerAddFeed(s *State, cmd Command) error {
 		newFeed.CreatedAt.Time,
 		newFeed.UpdatedAt.Time,
 	)
+
+	return nil
+}
+
+func HandlerFeeds(s *State, _ Command) error {
+	// Handles the feeds command
+
+	// Queries the feeds from the database
+	results, err := s.Conn.GetFeeds(context.Background())
+	// Reports any errors and exits with error code
+	if err != nil {
+		fmt.Println("Failed to get feed information.")
+		fmt.Printf("Error: \n\t%s\n", err)
+		os.Exit(1)
+	}
+
+	// Creates an empty slice of errors
+	errors := []error{}
+
+	// Loops through results
+	for i, feed := range results {
+		// Queries the user from the feed by ID
+		usr, err := s.Conn.GetUserFromId(context.Background(), feed.UserID)
+		// If there's a problem getting the user, adds the error to the errors slice
+		if err != nil {
+			errors = append(errors, err)
+			continue
+		}
+		// Prints the feed information
+		fmt.Printf("Feed %d:\n\tName: %s\n\tURL: %s\n\tUser: %s\n",
+			i+1,
+			feed.Name,
+			feed.Url,
+			usr.Name,
+		)
+	}
+
+	// Loops through and prints errors
+	if len(errors) > 0 {
+		fmt.Printf("Errors:\n\t")
+		for _, e := range errors {
+			fmt.Printf("%s\n\t", e)
+		}
+		// Exits with error code
+		os.Exit(1)
+	}
 
 	return nil
 }
