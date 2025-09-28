@@ -48,6 +48,7 @@ func main() {
 	cmds.Register("reset", state.HandlerReset)
 	cmds.Register("users", state.HandlerGetUsers)
 	cmds.Register("agg", state.HandlerAgg)
+	cmds.Register("addfeed", state.HandlerAddFeed)
 
 	// Reads input into args
 	args := os.Args

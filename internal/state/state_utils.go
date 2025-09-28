@@ -61,6 +61,67 @@ func HandlerAgg(s *State, cmd Command) error {
 	return nil
 }
 
+func HandlerAddFeed(s *State, cmd Command) error {
+	// Handles the addfeed command
+
+	if len(cmd.Args) < 2 {
+		fmt.Println("Must supply a name for the feed and a target URL.")
+		os.Exit(1)
+	}
+
+	// Gets the current time
+	currTime := time.Now()
+
+	// Queries the current user from the DB
+	user, err := s.Conn.GetUser(context.Background(), *s.Cfg.CurrentUser)
+	// Reports any errors and exits with error code
+	if err != nil {
+		fmt.Println("Failed to get user ID.")
+		fmt.Printf("Error: \n\t%s\n", err)
+		os.Exit(1)
+	}
+
+	// Creates the parameter object for CreateFeed
+	inVal := database.CreateFeedParams{
+		// Generates a uuid for the feed
+		ID: uuid.New(),
+		CreatedAt: sql.NullTime{
+			Time:  currTime,
+			Valid: true,
+		},
+		UpdatedAt: sql.NullTime{
+			Time:  currTime,
+			Valid: true,
+		},
+		Name:   cmd.Args[0],
+		Url:    cmd.Args[1],
+		UserID: user.ID,
+	}
+
+	// Adds the new feed to the database
+	newFeed, err := s.Conn.CreateFeed(context.Background(), inVal)
+
+	// Reports any errors and exits with failure code
+	if err != nil {
+		fmt.Println("Failed to add feed.")
+		fmt.Printf("Error: \n\t%s\n", err)
+		os.Exit(1)
+	}
+
+	// Prints details of the new feed
+	fmt.Printf(
+		"Name: %s\nURL: %s\nFeed ID: %s\nUser ID: %s\nCreated at: %s\nUpdated at: %s\n",
+		newFeed.Name,
+		newFeed.Url,
+		newFeed.ID,
+		newFeed.UserID,
+		newFeed.CreatedAt.Time,
+		newFeed.UpdatedAt.Time,
+	)
+
+	return nil
+}
+
 func HandlerReset(s *State, _ Command) error {
 	// Handles the reset command
 
