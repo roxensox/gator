@@ -45,10 +45,18 @@ func HandlerLogin(s *State, cmd Command) error {
 }
 
 func HandlerAgg(s *State, cmd Command) error {
+	// Handles the agg command
+
+	// NOTE: Will be updated
+
+	// Reads the feed into an RSSFeed object
 	feed, err := rss.FetchFeed(context.Background(), "https://www.wagslane.dev/index.xml")
+	// Returns any errors
 	if err != nil {
 		return err
 	}
+
+	// Prints the whole RSSFeed object
 	fmt.Println(feed)
 	return nil
 }
