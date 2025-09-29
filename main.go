@@ -47,9 +47,11 @@ func main() {
 	cmds.Register("register", state.HandlerRegister)
 	cmds.Register("reset", state.HandlerReset)
 	cmds.Register("users", state.HandlerGetUsers)
-	cmds.Register("agg", state.HandlerAgg)
-	cmds.Register("addfeed", state.HandlerAddFeed)
-	cmds.Register("feeds", state.HandlerFeeds)
+	cmds.Register("agg", state.MiddlewareLoggedIn(state.HandlerAgg))
+	cmds.Register("addfeed", state.MiddlewareLoggedIn(state.HandlerAddFeed))
+	cmds.Register("feeds", state.MiddlewareLoggedIn(state.HandlerFeeds))
+	cmds.Register("follow", state.MiddlewareLoggedIn(state.HandlerFollow))
+	cmds.Register("following", state.MiddlewareLoggedIn(state.HandlerFollowing))
 
 	// Reads input into args
 	args := os.Args

@@ -2,7 +2,6 @@ package state
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/roxensox/gator/internal/database"
@@ -44,7 +43,7 @@ func HandlerLogin(s *State, cmd Command) error {
 	return nil
 }
 
-func HandlerAgg(s *State, cmd Command) error {
+func HandlerAgg(s *State, cmd Command, user database.User) error {
 	// Handles the agg command
 
 	// NOTE: Will be updated
@@ -61,7 +60,75 @@ func HandlerAgg(s *State, cmd Command) error {
 	return nil
 }
 
-func HandlerAddFeed(s *State, cmd Command) error {
+func HandlerFollow(s *State, cmd Command, user database.User) error {
+	// Handles the follow command
+
+	// Gets the current time
+	currTime := time.Now()
+
+	// Queries the feed from the database
+	feed, err := s.Conn.GetFeed(context.Background(), cmd.Args[0])
+	// Reports any errors and exits with code 1
+	if err != nil {
+		fmt.Printf("Unable to find feed for %s\nError:\n\t%s\n",
+			cmd.Args[0],
+			err,
+		)
+	}
+
+	// Creates a CreateFeedFollow paremeter object
+	inVal := database.CreateFeedFollowParams{
+		ID:        uuid.New(),
+		CreatedAt: currTime,
+		UpdatedAt: currTime,
+		UID:       user.ID,
+		FID:       feed.ID,
+	}
+
+	// Creates the feed follow
+	feed_follow, err := s.Conn.CreateFeedFollow(context.Background(), inVal)
+	// Reports any errors and exits with code 1
+	if err != nil {
+		fmt.Printf("Unable to follow feed.\nError:\n\t%s\n", err)
+		os.Exit(1)
+	}
+
+	// Prints the follow details
+	fmt.Printf(
+		"Name: %s\n\tURL: %s\n\tUser: %s\n",
+		feed_follow.FeedName,
+		feed_follow.FeedUrl,
+		feed_follow.UserName,
+	)
+	return nil
+}
+
+func HandlerFollowing(s *State, _ Command, user database.User) error {
+	// Handles the following command
+
+	// Queries user follows from the database
+	follows, err := s.Conn.GetFeedFollowsForUser(context.Background(), user.ID)
+	// Reports any errors and exits with code 1
+	if err != nil {
+		fmt.Printf("Unable to get user follows.\nError:\n\t%s\n", err)
+		os.Exit(1)
+	}
+
+	// Iterates through all feed follows
+	for i, f := range follows {
+		// Prints the details
+		fmt.Printf(
+			"Feed %d:\n\tName: %s\n\tURL: %s\n\tUser: %s\n",
+			i+1,
+			f.FeedName,
+			f.FeedUrl,
+			f.UserName,
+		)
+	}
+	return nil
+}
+
+func HandlerAddFeed(s *State, cmd Command, user database.User) error {
 	// Handles the addfeed command
 
 	// Validates length of input
@@ -73,30 +140,15 @@ func HandlerAddFeed(s *State, cmd Command) error {
 	// Gets the current time
 	currTime := time.Now()
 
-	// Queries the current user from the DB
-	user, err := s.Conn.GetUser(context.Background(), *s.Cfg.CurrentUser)
-	// Reports any errors and exits with error code
-	if err != nil {
-		fmt.Println("Failed to get user ID.")
-		fmt.Printf("Error: \n\t%s\n", err)
-		os.Exit(1)
-	}
-
 	// Creates the parameter object for CreateFeed
 	inVal := database.CreateFeedParams{
 		// Generates a uuid for the feed
-		ID: uuid.New(),
-		CreatedAt: sql.NullTime{
-			Time:  currTime,
-			Valid: true,
-		},
-		UpdatedAt: sql.NullTime{
-			Time:  currTime,
-			Valid: true,
-		},
-		Name:   cmd.Args[0],
-		Url:    cmd.Args[1],
-		UserID: user.ID,
+		ID:        uuid.New(),
+		CreatedAt: currTime,
+		UpdatedAt: currTime,
+		Name:      cmd.Args[0],
+		Url:       cmd.Args[1],
+		UserID:    user.ID,
 	}
 
 	// Adds the new feed to the database
@@ -109,6 +161,24 @@ func HandlerAddFeed(s *State, cmd Command) error {
 		os.Exit(1)
 	}
 
+	// Creates a CreateFeedFollow paremeter object
+	feedFollow := database.CreateFeedFollowParams{
+		ID:        uuid.New(),
+		UID:       user.ID,
+		FID:       newFeed.ID,
+		CreatedAt: currTime,
+		UpdatedAt: currTime,
+	}
+
+	// Follows the feed for the currently signed in user
+	_, err = s.Conn.CreateFeedFollow(context.Background(), feedFollow)
+	// Reports any errors and exits with code 1
+	if err != nil {
+		fmt.Println("Failed to follow feed.")
+		fmt.Printf("Error: \n\t%s\n", err)
+		os.Exit(1)
+	}
+
 	// Prints details of the new feed
 	fmt.Printf(
 		"Name: %s\nURL: %s\nFeed ID: %s\nUser ID: %s\nCreated at: %s\nUpdated at: %s\n",
@@ -116,14 +186,14 @@ func HandlerAddFeed(s *State, cmd Command) error {
 		newFeed.Url,
 		newFeed.ID,
 		newFeed.UserID,
-		newFeed.CreatedAt.Time,
-		newFeed.UpdatedAt.Time,
+		newFeed.CreatedAt,
+		newFeed.UpdatedAt,
 	)
 
 	return nil
 }
 
-func HandlerFeeds(s *State, _ Command) error {
+func HandlerFeeds(s *State, _ Command, user database.User) error {
 	// Handles the feeds command
 
 	// Queries the feeds from the database
@@ -235,16 +305,10 @@ func HandlerRegister(s *State, cmd Command) error {
 
 	// Builds a CreateUserParams object for the input username
 	newUser := database.CreateUserParams{
-		ID: uuid.New(),
-		CreatedAt: sql.NullTime{
-			Time:  currTime,
-			Valid: true,
-		},
-		UpdatedAt: sql.NullTime{
-			Time:  currTime,
-			Valid: true,
-		},
-		Name: cmd.Args[0],
+		ID:        uuid.New(),
+		CreatedAt: currTime,
+		UpdatedAt: currTime,
+		Name:      cmd.Args[0],
 	}
 
 	// Creates the user
