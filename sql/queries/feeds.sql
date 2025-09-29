@@ -8,11 +8,25 @@ VALUES (
 	$5,
 	$6
 	)
-	RETURNING *;
+RETURNING *;
 
 -- name: GetFeeds :many
-SELECT * FROM feeds;
+SELECT * 
+FROM feeds;
 
 -- name: GetFeed :one
-SELECT * FROM feeds
+SELECT * 
+FROM feeds
 WHERE url = $1;
+
+-- name: MarkFeedChecked :exec
+UPDATE feeds
+SET	last_checked = $1,
+	updated_at = $1
+WHERE	id = $2;
+
+-- name: GetFeedToCheck :one
+SELECT * 
+FROM feeds 
+ORDER BY last_checked ASC NULLS FIRST 
+LIMIT 1;

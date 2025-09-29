@@ -7,6 +7,7 @@ package database
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,7 +23,7 @@ VALUES (
 	$5,
 	$6
 	)
-	RETURNING id, created_at, updated_at, name, url, user_id
+RETURNING id, created_at, updated_at, name, url, user_id, last_checked
 `
 
 type CreateFeedParams struct {
@@ -51,12 +52,14 @@ func (q *Queries) CreateFeed(ctx context.Context, arg CreateFeedParams) (Feed, e
 		&i.Name,
 		&i.Url,
 		&i.UserID,
+		&i.LastChecked,
 	)
 	return i, err
 }
 
 const getFeed = `-- name: GetFeed :one
-SELECT id, created_at, updated_at, name, url, user_id FROM feeds
+SELECT id, created_at, updated_at, name, url, user_id, last_checked 
+FROM feeds
 WHERE url = $1
 `
 
@@ -70,12 +73,36 @@ func (q *Queries) GetFeed(ctx context.Context, url string) (Feed, error) {
 		&i.Name,
 		&i.Url,
 		&i.UserID,
+		&i.LastChecked,
+	)
+	return i, err
+}
+
+const getFeedToCheck = `-- name: GetFeedToCheck :one
+SELECT id, created_at, updated_at, name, url, user_id, last_checked 
+FROM feeds 
+ORDER BY last_checked ASC NULLS FIRST 
+LIMIT 1
+`
+
+func (q *Queries) GetFeedToCheck(ctx context.Context) (Feed, error) {
+	row := q.db.QueryRowContext(ctx, getFeedToCheck)
+	var i Feed
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Name,
+		&i.Url,
+		&i.UserID,
+		&i.LastChecked,
 	)
 	return i, err
 }
 
 const getFeeds = `-- name: GetFeeds :many
-SELECT id, created_at, updated_at, name, url, user_id FROM feeds
+SELECT id, created_at, updated_at, name, url, user_id, last_checked 
+FROM feeds
 `
 
 func (q *Queries) GetFeeds(ctx context.Context) ([]Feed, error) {
@@ -94,6 +121,7 @@ func (q *Queries) GetFeeds(ctx context.Context) ([]Feed, error) {
 			&i.Name,
 			&i.Url,
 			&i.UserID,
+			&i.LastChecked,
 		); err != nil {
 			return nil, err
 		}
@@ -106,4 +134,21 @@ func (q *Queries) GetFeeds(ctx context.Context) ([]Feed, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const markFeedChecked = `-- name: MarkFeedChecked :exec
+UPDATE feeds
+SET	last_checked = $1,
+	updated_at = $1
+WHERE	id = $2
+`
+
+type MarkFeedCheckedParams struct {
+	LastChecked sql.NullTime
+	ID          uuid.UUID
+}
+
+func (q *Queries) MarkFeedChecked(ctx context.Context, arg MarkFeedCheckedParams) error {
+	_, err := q.db.ExecContext(ctx, markFeedChecked, arg.LastChecked, arg.ID)
+	return err
 }

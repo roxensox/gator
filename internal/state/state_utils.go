@@ -3,337 +3,40 @@ package state
 import (
 	"context"
 	"fmt"
-	"github.com/google/uuid"
 	"github.com/roxensox/gator/internal/database"
-	"github.com/roxensox/gator/internal/rss"
-	"os"
-	"time"
+	"strconv"
 )
 
-func HandlerLogin(s *State, cmd Command) error {
-	// Handles the login command
+func HandlerBrowse(s *State, cmd Command, user database.User) error {
+	// The lengths you have to go to for conditional assignment
+	limit := func(args []string) int {
+		if len(args) > 0 {
+			outVal, err := strconv.Atoi(cmd.Args[0])
+			if err != nil {
+				return 2
+			}
+			return outVal
+		}
+		return 2
+	}(cmd.Args)
 
-	// If the user didn't provide a username to log in, returns an error
-	if len(cmd.Args) == 0 {
-		fmt.Printf("Must provide a username to log in.\n")
-		os.Exit(1)
+	fmt.Printf("Showing %d results:\n\n", limit)
+
+	params := database.GetPostsForUserParams{
+		UID:   user.ID,
+		Limit: int32(limit),
 	}
 
-	// Queries the user from the database
-	usr, err := s.Conn.GetUser(context.Background(), cmd.Args[0])
-
-	// If the database doesn't return anything, exits with code 1
-	if err != nil || usr.Name != cmd.Args[0] {
-		fmt.Printf("User %s not found.\n", cmd.Args[0])
-		os.Exit(1)
-	}
-
-	// Sets the user to the provided username
-	err = s.Cfg.SetUser(cmd.Args[0])
-
-	// If there is an error setting the user, returns it
+	results, err := s.Conn.GetPostsForUser(context.Background(), params)
 	if err != nil {
+		fmt.Printf("Could not get posts for %s.\n", user.Name)
 		return err
 	}
 
-	// Prints success message
-	fmt.Printf("User set to %s.\n", cmd.Args[0])
-
-	// Returns a null error
-	return nil
-}
-
-func HandlerAgg(s *State, cmd Command, user database.User) error {
-	// Handles the agg command
-
-	// NOTE: Will be updated
-
-	// Reads the feed into an RSSFeed object
-	feed, err := rss.FetchFeed(context.Background(), "https://www.wagslane.dev/index.xml")
-	// Returns any errors
-	if err != nil {
-		return err
+	for _, r := range results {
+		fmt.Println(r.Title.String)
+		fmt.Printf("%s\n\n", r.Url.String)
 	}
-
-	// Prints the whole RSSFeed object
-	fmt.Println(feed)
-	return nil
-}
-
-func HandlerFollow(s *State, cmd Command, user database.User) error {
-	// Handles the follow command
-
-	// Gets the current time
-	currTime := time.Now()
-
-	// Queries the feed from the database
-	feed, err := s.Conn.GetFeed(context.Background(), cmd.Args[0])
-	// Reports any errors and exits with code 1
-	if err != nil {
-		fmt.Printf("Unable to find feed for %s\nError:\n\t%s\n",
-			cmd.Args[0],
-			err,
-		)
-	}
-
-	// Creates a CreateFeedFollow paremeter object
-	inVal := database.CreateFeedFollowParams{
-		ID:        uuid.New(),
-		CreatedAt: currTime,
-		UpdatedAt: currTime,
-		UID:       user.ID,
-		FID:       feed.ID,
-	}
-
-	// Creates the feed follow
-	feed_follow, err := s.Conn.CreateFeedFollow(context.Background(), inVal)
-	// Reports any errors and exits with code 1
-	if err != nil {
-		fmt.Printf("Unable to follow feed.\nError:\n\t%s\n", err)
-		os.Exit(1)
-	}
-
-	// Prints the follow details
-	fmt.Printf(
-		"Name: %s\n\tURL: %s\n\tUser: %s\n",
-		feed_follow.FeedName,
-		feed_follow.FeedUrl,
-		feed_follow.UserName,
-	)
-	return nil
-}
-
-func HandlerFollowing(s *State, _ Command, user database.User) error {
-	// Handles the following command
-
-	// Queries user follows from the database
-	follows, err := s.Conn.GetFeedFollowsForUser(context.Background(), user.ID)
-	// Reports any errors and exits with code 1
-	if err != nil {
-		fmt.Printf("Unable to get user follows.\nError:\n\t%s\n", err)
-		os.Exit(1)
-	}
-
-	// Iterates through all feed follows
-	for i, f := range follows {
-		// Prints the details
-		fmt.Printf(
-			"Feed %d:\n\tName: %s\n\tURL: %s\n\tUser: %s\n",
-			i+1,
-			f.FeedName,
-			f.FeedUrl,
-			f.UserName,
-		)
-	}
-	return nil
-}
-
-func HandlerAddFeed(s *State, cmd Command, user database.User) error {
-	// Handles the addfeed command
-
-	// Validates length of input
-	if len(cmd.Args) < 2 {
-		fmt.Println("Must supply a name for the feed and a target URL.")
-		os.Exit(1)
-	}
-
-	// Gets the current time
-	currTime := time.Now()
-
-	// Creates the parameter object for CreateFeed
-	inVal := database.CreateFeedParams{
-		// Generates a uuid for the feed
-		ID:        uuid.New(),
-		CreatedAt: currTime,
-		UpdatedAt: currTime,
-		Name:      cmd.Args[0],
-		Url:       cmd.Args[1],
-		UserID:    user.ID,
-	}
-
-	// Adds the new feed to the database
-	newFeed, err := s.Conn.CreateFeed(context.Background(), inVal)
-
-	// Reports any errors and exits with failure code
-	if err != nil {
-		fmt.Println("Failed to add feed.")
-		fmt.Printf("Error: \n\t%s\n", err)
-		os.Exit(1)
-	}
-
-	// Creates a CreateFeedFollow paremeter object
-	feedFollow := database.CreateFeedFollowParams{
-		ID:        uuid.New(),
-		UID:       user.ID,
-		FID:       newFeed.ID,
-		CreatedAt: currTime,
-		UpdatedAt: currTime,
-	}
-
-	// Follows the feed for the currently signed in user
-	_, err = s.Conn.CreateFeedFollow(context.Background(), feedFollow)
-	// Reports any errors and exits with code 1
-	if err != nil {
-		fmt.Println("Failed to follow feed.")
-		fmt.Printf("Error: \n\t%s\n", err)
-		os.Exit(1)
-	}
-
-	// Prints details of the new feed
-	fmt.Printf(
-		"Name: %s\nURL: %s\nFeed ID: %s\nUser ID: %s\nCreated at: %s\nUpdated at: %s\n",
-		newFeed.Name,
-		newFeed.Url,
-		newFeed.ID,
-		newFeed.UserID,
-		newFeed.CreatedAt,
-		newFeed.UpdatedAt,
-	)
-
-	return nil
-}
-
-func HandlerFeeds(s *State, _ Command, user database.User) error {
-	// Handles the feeds command
-
-	// Queries the feeds from the database
-	results, err := s.Conn.GetFeeds(context.Background())
-	// Reports any errors and exits with error code
-	if err != nil {
-		fmt.Println("Failed to get feed information.")
-		fmt.Printf("Error: \n\t%s\n", err)
-		os.Exit(1)
-	}
-
-	// Creates an empty slice of errors
-	errors := []error{}
-
-	// Loops through results
-	for i, feed := range results {
-		// Queries the user from the feed by ID
-		usr, err := s.Conn.GetUserFromId(context.Background(), feed.UserID)
-		// If there's a problem getting the user, adds the error to the errors slice
-		if err != nil {
-			errors = append(errors, err)
-			continue
-		}
-		// Prints the feed information
-		fmt.Printf("Feed %d:\n\tName: %s\n\tURL: %s\n\tUser: %s\n",
-			i+1,
-			feed.Name,
-			feed.Url,
-			usr.Name,
-		)
-	}
-
-	// Loops through and prints errors
-	if len(errors) > 0 {
-		fmt.Printf("Errors:\n\t")
-		for _, e := range errors {
-			fmt.Printf("%s\n\t", e)
-		}
-		// Exits with error code
-		os.Exit(1)
-	}
-
-	return nil
-}
-
-func HandlerReset(s *State, _ Command) error {
-	// Handles the reset command
-
-	// Wipes the users table
-	err := s.Conn.ResetUsers(context.Background())
-
-	// If there is an error wiping the table, exits with code 1
-	if err != nil {
-		os.Exit(1)
-	}
-
-	// Exits with code 0
-	os.Exit(0)
-
-	// Returns null error so this will run
-	return nil
-}
-
-func HandlerGetUsers(s *State, _ Command) error {
-	// Handles the users command
-
-	// Queries all usernames from the database
-	usrs, err := s.Conn.GetUsers(context.Background())
-
-	// If there is an error from the query, exits with code 1
-	if err != nil {
-		os.Exit(1)
-	}
-
-	// Iterates through all usernames
-	for _, v := range usrs {
-		// If the user being read is logged in, prints special message
-		// Otherwise, prints the username
-		if v == *s.Cfg.CurrentUser {
-			fmt.Printf(" * %s (current)\n", v)
-		} else {
-			fmt.Printf(" * %s\n", v)
-		}
-	}
-
-	// Returns a null error
-	return nil
-}
-
-func HandlerRegister(s *State, cmd Command) error {
-	// Handles the register command
-
-	// If the user didn't provide a username, returns an error
-	if len(cmd.Args) == 0 {
-		return fmt.Errorf("Command has no arguments")
-	}
-
-	// Queries the database to check if the user has already been added
-	usr, _ := s.Conn.GetUser(context.Background(), cmd.Args[0])
-
-	// If a user is returned and matches the input, exits with code 1
-	if usr.Name == cmd.Args[0] {
-		fmt.Printf("User %s already registered.\n", cmd.Args[0])
-		os.Exit(1)
-	}
-
-	// Gets the current time
-	currTime := time.Now()
-
-	// Builds a CreateUserParams object for the input username
-	newUser := database.CreateUserParams{
-		ID:        uuid.New(),
-		CreatedAt: currTime,
-		UpdatedAt: currTime,
-		Name:      cmd.Args[0],
-	}
-
-	// Creates the user
-	usr, err := s.Conn.CreateUser(context.Background(), newUser)
-
-	// If an error results, returns it
-	if err != nil {
-		return err
-	}
-
-	// Sets the current user to the new user
-	s.Cfg.SetUser(cmd.Args[0])
-
-	// Prints a success message with details [DEBUG ONLY]
-	//fmt.Printf("User: %s created\nUUID: %s\nCreated At: %s\nUpdated At: %s\n",
-	//cmd.Args[0],
-	//newUser.ID,
-	//newUser.CreatedAt.Time,
-	//newUser.UpdatedAt.Time,
-	//)
-
-	// Prints a regular success message
-	fmt.Printf("Successfully registered %s\n", cmd.Args[0])
-
-	// Returns a null error
 	return nil
 }
 
