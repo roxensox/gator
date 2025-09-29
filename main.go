@@ -53,6 +53,7 @@ func main() {
 	cmds.Register("follow", state.MiddlewareLoggedIn(state.HandlerFollow))
 	cmds.Register("following", state.MiddlewareLoggedIn(state.HandlerFollowing))
 	cmds.Register("unfollow", state.MiddlewareLoggedIn(state.HandlerUnfollow))
+	cmds.Register("browse", state.MiddlewareLoggedIn(state.HandlerBrowse))
 
 	// Reads input into args
 	args := os.Args
